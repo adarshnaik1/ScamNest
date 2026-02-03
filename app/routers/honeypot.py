@@ -17,6 +17,7 @@ from ..services.scam_detector import ScamDetector
 from ..services.intelligence_extractor import IntelligenceExtractor
 from ..services.agent_service import AgentService
 from ..services.callback_service import CallbackService
+from ..services.translator import Translator
 from ..middleware.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ scam_detector = ScamDetector()
 intelligence_extractor = IntelligenceExtractor()
 agent_service = AgentService()
 callback_service = CallbackService()
-
+Translate_service= Translator()
 
 async def process_callback(session: SessionState, agent_notes: str):
     """Background task to send callback."""
@@ -85,8 +86,18 @@ async def handle_message(
                 session.messages.insert(-1, hist_msg)
                 session.totalMessages += 1
         session = session_service.update_session(session)
-    
-    # Step 3: Analyze for scam patterns
+
+    # Step 3: Translate and analyze for scam patterns
+    if request.message.sender.lower() == "scammer":
+        try:
+            translated_text = Translate_service.translate(request.message.text)
+            request.message.text = translated_text
+            # Update the message in session history so detector sees English
+            session.messages[-1].text = translated_text
+            logger.info(f"Translated message to English for detection: {translated_text}")
+        except Exception as e:
+            logger.error(f"Translation failed: {e}")
+
     confidence, suspected, confirmed, keywords = scam_detector.analyze_session(session)
     session = session_service.update_scam_status(
         request.sessionId,
