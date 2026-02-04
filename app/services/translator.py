@@ -1,33 +1,42 @@
 
-from transformers import MarianTokenizer, MarianMTModel
+# from transformers import MarianTokenizer, MarianMTModel
+#
+#
+# tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
+# model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
+import os
+from huggingface_hub import InferenceClient
+from ..config import get_settings
 
+settings = get_settings()
 
-tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
-model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
 class Translator:
 
     def __init__(self):
-        self.tokenizer = tokenizer
-        self.model = model
+        self.client = InferenceClient(
+            provider="hf-inference",
+            api_key=settings.hf_token
+        )
+        # print(settings.hf_token)
 
-    def translate(self, text: str) -> str:
+    def translate(self, text: str) :
         try:
-            batch = self.tokenizer([text], return_tensors="pt")
-            generated_ids = self.model.generate(**batch)
-            return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            result = self.client.translation(
+                text,
+                model="Helsinki-NLP/opus-mt-mul-en",
+            )
+            return result.translation_text.strip()
         except Exception as e:
             raise e
 
-#
-# print(translate("""Here is the **Marathi translation** of the given Kannada text:
-#
-# **मराठी:**
-#
-# तुमच्या बँक खात्यात संशयास्पद हालचाल आढळून आली आहे.
-# कृपया तात्काळ खालील लिंकवर क्लिक करून तुमची माहिती पडताळून पहा.
-#
+translator = Translator()
+# print(translator.translate("some text"))
+print(translator.translate("""
+तुमच्या बँक खात्यात संशयास्पद हालचाल आढळून आली आहे.
+कृपया तात्काळ खालील लिंकवर क्लिक करून तुमची माहिती पडताळून पहा.
+
 # """))
-# print("end")
+# # print("end")
 # print("end")
 # import sys
 # sys.exit(0)
