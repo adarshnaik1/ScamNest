@@ -6,6 +6,41 @@ import pytest
 from app.models.schemas import Message, SessionState, ExtractedIntelligence
 from app.services.scam_detector import ScamDetector
 from app.services.intelligence_extractor import IntelligenceExtractor
+from app.services.lang_detector import LanguageDetector
+
+
+class TestLanguageDetector:
+    """Test language detection service."""
+    
+    @pytest.fixture
+    def detector(self):
+        """Create language detector instance."""
+        return LanguageDetector()
+    
+    def test_detect_english(self, detector):
+        """Test detection of English text."""
+        text = "Hello, how are you doing today?"
+        assert detector.detect(text) == "en"
+    
+    def test_detect_hindi(self, detector):
+        """Test detection of Hindi text."""
+        # "Hello, how are you?" in Hindi
+        text = "नमस्ते, आप कैसे हैं?"
+        assert detector.detect(text) == "hi"
+    
+    def test_detect_mixed_with_confidence(self, detector):
+        """Test detection with confidence scores."""
+        text = "This is a predominently English sentence with some random words."
+        results = detector.detect_with_confidence(text)
+        assert len(results) > 0
+        assert results[0]["lang"] == "en"
+        assert results[0]["prob"] > 0.5
+
+    def test_invalid_input(self, detector):
+        """Test detection with invalid input."""
+        assert detector.detect("") == "unknown"
+        assert detector.detect("   ") == "unknown"
+        assert detector.detect_with_confidence(None) == []
 
 
 class TestScamDetector:

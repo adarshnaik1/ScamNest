@@ -161,7 +161,9 @@ class TestHoneypotEndpoint:
                 "conversationHistory": [
                     {
                         "sender": "scammer",
-                        "text": "Your account is blocked.",
+                        "text":  """ನಿಮ್ಮ ಬ್ಯಾಂಕ್ ಖಾತೆಯಲ್ಲಿ ಅನುಮಾನಾಸ್ಪದ ಚಟುವಟಿಕೆ ಕಂಡುಬಂದಿದೆ.
+            ದಯವಿಟ್ಟು ತಕ್ಷಣ ಕೆಳಗಿನ ಲಿಂಕ್ ಕ್ಲಿಕ್ ಮಾಡಿ ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ
+            """,
                         "timestamp": "2026-01-21T10:15:30Z",
                     },
                     {
@@ -184,6 +186,9 @@ class TestHoneypotEndpoint:
             "URGENT: Your account will be blocked!",
             "Share your OTP immediately to prevent suspension.",
             "Click this link to verify: http://malicious.com/verify",
+            """ನಿಮ್ಮ ಬ್ಯಾಂಕ್ ಖಾತೆಯಲ್ಲಿ ಅನುಮಾನಾಸ್ಪದ ಚಟುವಟಿಕೆ ಕಂಡುಬಂದಿದೆ.
+            ದಯವಿಟ್ಟು ತಕ್ಷಣ ಕೆಳಗಿನ ಲಿಂಕ್ ಕ್ಲಿಕ್ ಮಾಡಿ ನಿಮ್ಮ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ
+            """
         ]
         
         for i, msg in enumerate(messages):

@@ -79,3 +79,5 @@ app/model_artifacts/
 # OS files
 .DS_Store
 Thumbs.db
+
+requirement1.txt

@@ -18,6 +18,7 @@ from ..services.model_predictor import ScamDetector as MLScamDetector
 from ..services.intelligence_extractor import IntelligenceExtractor
 from ..services.agent_service import AgentService
 from ..services.callback_service import CallbackService
+from ..services.translator import Translator
 from ..middleware.auth import verify_api_key
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ ml_scam_detector = MLScamDetector()
 intelligence_extractor = IntelligenceExtractor()
 agent_service = AgentService()
 callback_service = CallbackService()
-
+Translate_service= Translator()
 
 async def process_callback(session: SessionState, agent_notes: str):
     """Background task to send callback."""
@@ -71,8 +72,32 @@ async def handle_message(
     """
     logger.info(f"Received message for session {request.sessionId}")
     
-    # Preliminary intent detection using HF endpoint (only for scammer messages)
+    # Create/get session and add the incoming message first so translation
+    # and analysis can update session history consistently.
+    session = session_service.get_or_create_session(request.sessionId, request.metadata)
+    session = session_service.add_message(request.sessionId, request.message)
+
+    # Add conversation history if provided (for first message reconstruction)
+    if request.conversationHistory and session.totalMessages == 1:
+        for hist_msg in request.conversationHistory:
+            if hist_msg not in session.messages:
+                session.messages.insert(-1, hist_msg)
+                session.totalMessages += 1
+        session = session_service.update_session(session)
+
+    # For scammer messages: translate first, then run ML preliminary intent
     if request.message.sender.lower() == "scammer":
+        try:
+            translated_text = Translate_service.translate(request.message.text)
+            request.message.text = translated_text
+            # Update the message in session history so detector sees English
+            session.messages[-1].text = translated_text
+            session = session_service.update_session(session)
+            logger.info(f"Translated message to English for detection: {translated_text}")
+        except Exception as e:
+            logger.error(f"Translation failed: {e}")
+
+        # Run ML-based preliminary intent on translated text
         ml_result = ml_scam_detector.is_possible_scam(request.message.text)
         label = ml_result.get("label", "not_scam")
         confidence = float(ml_result.get("confidence", 0.0))
@@ -82,28 +107,24 @@ async def handle_message(
             # Ignore non-scam messages early
             return {"status": "ignored", "reason": "not a scam"}
 
-        # Create/get session and persist preliminary intent
-        session = session_service.get_or_create_session(request.sessionId, request.metadata)
-        session = session_service.add_message(request.sessionId, request.message)
+        # Persist preliminary intent and mark LLM engagement
         session.preliminaryIntent = "possible_scam"
         session.preliminaryConfidence = confidence
         session.llmEngaged = True
         session = session_service.update_session(session)
         logger.info(f"Preliminary intent: {session.preliminaryIntent} (conf={confidence:.2f})")
-    else:
-        # Non-scammer messages: proceed normally
-        session = session_service.get_or_create_session(request.sessionId, request.metadata)
-        session = session_service.add_message(request.sessionId, request.message)
-    
-    # Add conversation history if provided (for first message reconstruction)
-    if request.conversationHistory and session.totalMessages == 1:
-        for hist_msg in request.conversationHistory:
-            if hist_msg not in session.messages:
-                session.messages.insert(-1, hist_msg)
-                session.totalMessages += 1
-        session = session_service.update_session(session)
-    
-    # Step 3: Analyze for scam patterns
+
+    # Step 3: Translate and analyze for scam patterns
+    if request.message.sender.lower() == "scammer":
+        try:
+            translated_text = Translate_service.translate(request.message.text)
+            request.message.text = translated_text
+            # Update the message in session history so detector sees English
+            session.messages[-1].text = translated_text
+            logger.info(f"Translated message to English for detection: {translated_text}")
+        except Exception as e:
+            logger.error(f"Translation failed: {e}")
+
     confidence, suspected, confirmed, keywords = rule_scam_detector.analyze_session(session)
     session = session_service.update_scam_status(
         request.sessionId,
@@ -116,6 +137,9 @@ async def handle_message(
         f"Session {request.sessionId}: confidence={confidence:.2f}, "
         f"suspected={suspected}, confirmed={confirmed}"
     )
+    # Determine scam type for display and callbacks
+    scam_type = rule_scam_detector.get_scam_type(session.extractedIntelligence.suspiciousKeywords)
+    logger.info(f"Session {request.sessionId}: scam_type={scam_type}")
     
     # Step 4: Extract intelligence
     intelligence = intelligence_extractor.extract_from_message(request.message)
@@ -155,6 +179,7 @@ async def handle_message(
     return {
         "status": "success",
         "reply": reply,
+        "scam_type": scam_type,
     }
 
 

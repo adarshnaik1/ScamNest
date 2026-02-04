@@ -299,7 +299,7 @@ class ScamDetector:
                     except Exception:
                         return {"label": "not_scam", "confidence": 0.0}
 
-            label = "possible_scam" if proba >= 0.5 else "not_scam"
+            label = "possible_scam" if proba >= 0.4 else "not_scam"
             out = {"label": label, "confidence": float(proba)}
             logger.info("ScamDetector[local] message=%s label=%s confidence=%.4f", message[:200], out["label"], out["confidence"])
             return out
