@@ -74,10 +74,24 @@ app/
  config.py            # .env settings
  routers/honeypot.py  # POST /honeypot
  services/
-    scam_detector.py         # Hardcoded (needs ML)
+    model_predictor.py       #for preliminary check for possiblity of scam
+    scam_detector_hybrid.py         #Hybrid ( Model + Rule Based) detector for scam detection
     intelligence_extractor.py
     agent_service.py         # OpenAI responses
     session_service.py
     callback_service.py
  middleware/auth.py   # x-api-key check
+ ai_model/
+    dataset/                              #contain the dataset
+    model/                                #contain the models
+    spam_detection_model_training.ipynb   #model training
+    train_scam_model.py                   #model training  
+```
+
+## Dataset
+```
+https://www.kaggle.com/datasets/ashfakyeafi/spam-email-classification
+https://www.kaggle.com/datasets/naserabdullahalam/phishing-email-dataset
+https://www.kaggle.com/datasets/mariumfaheem666/spam-sms-classification-using-nlp
+https://www.kaggle.com/datasets/adityakaranth/uci-sms-spam-collection-data-set
 ```

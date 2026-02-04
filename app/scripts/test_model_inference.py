@@ -1,4 +1,4 @@
-from app.services.model_predictor import ScamDetector
+from app.services.preliminary_model_prediction import ScamDetector
 
 det = ScamDetector()
 

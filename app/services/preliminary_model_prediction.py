@@ -22,7 +22,7 @@ except Exception:
 
 import numpy as np
 from ..models.schemas import Message
-from .scam_detector import ScamDetector as RuleScamDetector
+from .scam_detector_hybrid import ScamDetector as RuleScamDetector
 
 logger = logging.getLogger(__name__)
 

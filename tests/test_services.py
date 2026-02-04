@@ -4,7 +4,7 @@ Unit tests for service modules.
 
 import pytest
 from app.models.schemas import Message, SessionState, ExtractedIntelligence
-from app.services.scam_detector import ScamDetector
+from app.services.scam_detector_hybrid import ScamDetector
 from app.services.intelligence_extractor import IntelligenceExtractor
 from app.services.lang_detector import LanguageDetector
 
