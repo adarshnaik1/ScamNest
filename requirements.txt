@@ -8,9 +8,9 @@ openai==1.12.0
 joblib
 scipy
 requests
-transformers
-sentencepiece
-torch
+# transformers  # Commented out - saves ~500-800 MB
+# sentencepiece  # Commented out - translation dependency
+# torch  # Commented out - saves ~700-900 MB
 pandas
 scikit-learn
 langdetect

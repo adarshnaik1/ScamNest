@@ -1,22 +1,20 @@
 
-from transformers import MarianTokenizer, MarianMTModel
+# TRANSLATION DISABLED TO REDUCE DEPLOYMENT SIZE
+# Removing transformers, torch, and sentencepiece saves ~1.5-2 GB
 
+# from transformers import MarianTokenizer, MarianMTModel
+# tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
+# model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
 
-tokenizer = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
-model = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-mul-en")
 class Translator:
+    """Dummy translator that returns text as-is (translation disabled)."""
 
     def __init__(self):
-        self.tokenizer = tokenizer
-        self.model = model
+        pass
 
     def translate(self, text: str) -> str:
-        try:
-            batch = self.tokenizer([text], return_tensors="pt")
-            generated_ids = self.model.generate(**batch)
-            return self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
-        except Exception as e:
-            raise e
+        """Return text unchanged (translation disabled for deployment size optimization)."""
+        return text
 
 #
 # print(translate("""Here is the **Marathi translation** of the given Kannada text:
