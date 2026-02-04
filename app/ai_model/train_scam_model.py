@@ -9,7 +9,7 @@ import joblib
 import pandas as pd
 
 # Load dataset (CSV, not Excel)
-df = pd.read_csv("spam.csv", encoding="latin-1")
+df = pd.read_csv("../spam.csv", encoding="latin-1")
 
 # Keep only what we need
 df = df[["v1", "v2"]]

@@ -13,8 +13,8 @@ from ..models.schemas import (
     SessionState,
 )
 from ..services.session_service import SessionService
-from ..services.scam_detector import ScamDetector as RuleScamDetector
-from ..services.model_predictor import ScamDetector as MLScamDetector
+from ..services.scam_detector_hybrid import ScamDetector as RuleAndModelScamDetector
+from ..services.preliminary_model_prediction import ScamDetector as MLScamDetector
 from ..services.intelligence_extractor import IntelligenceExtractor
 from ..services.agent_service import AgentService
 from ..services.callback_service import CallbackService
@@ -27,7 +27,7 @@ router = APIRouter(tags=["Honeypot"])
 
 # Initialize services
 session_service = SessionService()
-rule_scam_detector = RuleScamDetector()
+rule_and_model_scam_detector = RuleAndModelScamDetector()
 ml_scam_detector = MLScamDetector()
 intelligence_extractor = IntelligenceExtractor()
 agent_service = AgentService()
@@ -125,7 +125,7 @@ async def handle_message(
         except Exception as e:
             logger.error(f"Translation failed: {e}")
 
-    confidence, suspected, confirmed, keywords = rule_scam_detector.analyze_session(session)
+    confidence, suspected, confirmed, keywords = rule_and_model_scam_detector.analyze_session(session)
     session = session_service.update_scam_status(
         request.sessionId,
         suspected=suspected,
@@ -138,7 +138,7 @@ async def handle_message(
         f"suspected={suspected}, confirmed={confirmed}"
     )
     # Determine scam type for display and callbacks
-    scam_type = rule_scam_detector.get_scam_type(session.extractedIntelligence.suspiciousKeywords)
+    scam_type = rule_and_model_scam_detector.get_scam_type(session.extractedIntelligence.suspiciousKeywords)
     logger.info(f"Session {request.sessionId}: scam_type={scam_type}")
     
     # Step 4: Extract intelligence
@@ -167,7 +167,7 @@ async def handle_message(
     # Step 6: Check if callback should be sent
     if callback_service.should_send_callback(session):
         # Generate agent notes
-        scam_type = rule_scam_detector.get_scam_type(
+        scam_type = rule_and_model_scam_detector.get_scam_type(
             session.extractedIntelligence.suspiciousKeywords
         )
         agent_notes = intelligence_extractor.generate_agent_notes(session, scam_type)

@@ -5,8 +5,8 @@ installing requirements (`pip install -r requirements.txt`).
 """
 import json
 import sys
-from app.services.scam_detector import ScamDetector
-from app.services.model_predictor import ModelPredictor
+from app.services.scam_detector_hybrid import ScamDetector
+from app.services.preliminary_model_prediction import ModelPredictor
 
 
 def main():
