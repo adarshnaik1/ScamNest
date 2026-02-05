@@ -297,18 +297,20 @@ async def handle_message(
         logger.info(f"Extracted intelligence: {masked_intel}")
 
     # Step 5: Generate agent response based on risk level
-    # For hackathon: Always engage if scam suspected or detected to maximize intelligence extraction
-    should_engage = session.scamSuspected or session.scamDetected
+    # Scam context: Use extraction-focused persona to gather artifacts
+    # Non-scam context: Use casual persona for normal conversation
+    is_scam_context = session.scamSuspected or session.scamDetected
 
     logger.info(
-        f"Engagement decision: should_engage={should_engage}, "
+        f"Engagement decision: is_scam_context={is_scam_context}, "
         f"scamSuspected={session.scamSuspected}, scamDetected={session.scamDetected}"
     )
 
     reply = agent_service.generate_response_conditional(
         session,
         request.message,
-        engage_llm=bool(should_engage),
+        engage_llm=True,  # Always use LLM for natural responses
+        is_scam=is_scam_context,  # Switch persona based on scam detection
     )
 
     # Add agent response to session

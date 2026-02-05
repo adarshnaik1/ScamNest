@@ -201,6 +201,60 @@ REMEMBER: Your goal is to make them reveal THEIR UPI IDs, bank accounts, phone n
             print(f"OpenAI API error: {e}")
             return None
     
+    def _get_casual_ai_response(
+        self, 
+        session: SessionState, 
+        current_message: Message
+    ) -> Optional[str]:
+        """Generate casual/normal conversation response using OpenAI API for non-scam messages."""
+        client = self._get_openai_client()
+        if client is None:
+            return None
+        
+        try:
+            system_prompt = """You are a friendly, normal person having a casual conversation. You received a message and you're responding naturally.
+
+BEHAVIOR:
+1. Be friendly and conversational
+2. Respond naturally like a regular person
+3. Keep responses SHORT (1-2 sentences)
+4. Use simple, casual English
+5. Show genuine interest in the conversation
+6. If the topic is unclear, politely ask for clarification
+7. Be warm and engaging like talking to an acquaintance
+
+EXAMPLES:
+- "Hey, tell me. What's up?"
+- "Oh nice! How can I help you?"
+- "I see, I understand. What do you need?"
+- "Hello, who is this?"
+- "Sure, go ahead."
+
+RULES:
+- Keep it natural and conversational
+- Don't be suspicious or defensive
+- Act like you're chatting with someone you might know
+- 1-2 sentences only"""
+
+            conversation = self._build_conversation_context(session)
+            
+            response = client.chat.completions.create(
+                model=self.settings.openai_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"Conversation so far:\n{conversation}\n\nTheir latest message: {current_message.text}\n\nGenerate a natural, friendly response. Keep it short (1-2 sentences)."}
+                ],
+                max_tokens=80,
+                temperature=0.7,
+                timeout=10.0,
+            )
+            if response.choices[0].message.content is not None:
+                return response.choices[0].message.content.strip()
+            return None
+        except Exception as e:
+            print(f"OpenAI API error (casual): {e}")
+            return None
+    
     #This part is only meant for generating template responses in case openai api keys are not available
     def _select_template_response(
         self, 
@@ -285,16 +339,30 @@ REMEMBER: Your goal is to make them reveal THEIR UPI IDs, bank accounts, phone n
         session: SessionState,
         current_message: Message,
         engage_llm: bool,
+        is_scam: bool = True,
     ) -> str:
-        """Generate a response only using the LLM when `engage_llm` is True.
+        """Generate a response using LLM or templates.
 
-        If `engage_llm` is False, this will always use the template selector
-        and will not call the OpenAI API.
+        Args:
+            session: Current session state
+            current_message: The incoming message to respond to
+            engage_llm: If True, use LLM. If False, use templates only.
+            is_scam: If True, use scam-engagement persona. If False, use casual persona.
+        
+        Returns:
+            Generated response string
         """
         if engage_llm:
-            ai_response = self._get_ai_response(session, current_message)
+            if is_scam:
+                # Scam detected - use extraction-focused persona
+                ai_response = self._get_ai_response(session, current_message)
+            else:
+                # Not a scam - use casual/normal persona
+                ai_response = self._get_casual_ai_response(session, current_message)
+            
             if ai_response:
-                print("LOGS_DATA : OPENAI response generated and it is {"+ ai_response +"}")
+                persona = "SCAM-ENGAGEMENT" if is_scam else "CASUAL"
+                print(f"LOGS_DATA : OPENAI [{persona}] response generated: {ai_response}")
                 return ai_response
             return self._select_template_response(session, current_message)
 
