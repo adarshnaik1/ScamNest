@@ -121,16 +121,16 @@ async def handle_message(
         logger.info("preliminary scam detector output for session %s: %s", request.sessionId, ml_result)
 
         # Persist preliminary intent and mark LLM engagement
-        session.preliminaryIntent = "possible_scam"
+        session.preliminaryIntent = label  # Store actual ML prediction
         session.preliminaryConfidence = confidence
-        session.llmEngaged = True
+        session.llmEngaged = label == "possible_scam"  # Only engage LLM if ML flags as possible scam
         session = session_service.update_session(session)
         logger.info(f"Preliminary intent: {session.preliminaryIntent} (conf={confidence:.2f})")
 
     # Use new confidence-aware risk aggregation
     ml_prediction = {
         "label": session.preliminaryIntent or "not_scam",
-        "confidence": session.preliminaryConfidence
+        "confidence": session.preliminaryConfidence or 0.0
     }
 
     # Analyze with the new risk aggregator (single message)
