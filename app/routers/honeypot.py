@@ -22,11 +22,17 @@ from ..services.translator import Translator
 from ..services.risk_aggregator import RiskAggregator, RiskLevel
 from ..services.review_queue import ReviewQueueService
 from ..services.feedback_loop import FeedbackLoopService
+from ..services.llm_scam_validator import LLMScamValidator
+from ..services.data_masker import DataMasker, mask_for_logging
 from ..middleware.auth import verify_api_key
+from ..config import get_settings
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Honeypot"])
+
+# Get settings
+settings = get_settings()
 
 # Initialize services
 session_service = SessionService()
@@ -39,6 +45,8 @@ Translate_service = Translator()
 risk_aggregator = RiskAggregator()  # Confidence-aware risk aggregator
 review_queue_service = ReviewQueueService()  # Review queue for suspicious cases
 feedback_loop_service = FeedbackLoopService()  # Feedback loop for continuous learning
+llm_validator = LLMScamValidator()  # LLM-based validation and analysis
+data_masker = DataMasker()  # Data masking for PII protection in logs
 
 async def process_callback(session: SessionState, agent_notes: str):
     """Background task to send callback."""
@@ -102,7 +110,7 @@ async def handle_message(
             # Update the message in session history so detector sees English
             session.messages[-1].text = translated_text
             session = session_service.update_session(session)
-            logger.info(f"Translated message to English for detection: {translated_text}")
+            logger.info(f"Translated message to English for detection: {mask_for_logging(translated_text)}")
         except Exception as e:
             logger.error(f"Translation failed: {e}")
 
@@ -174,6 +182,88 @@ async def handle_message(
             aggregated_score = min(aggregated_score + 0.15, 1.0)
             logger.info(f"Risk score boosted to {aggregated_score:.2f} due to velocity violation")
 
+    # OPTION 1: LLM Validation for SUSPICIOUS cases
+    llm_reasoning = None
+    if settings.use_llm_validation and risk_level == RiskLevel.SUSPICIOUS and llm_validator.is_available():
+        logger.info(f"Running LLM validation for SUSPICIOUS case: session {request.sessionId}")
+        try:
+            llm_decision, llm_score, llm_reasoning = await llm_validator.validate_suspicious_message(
+                message_text=request.message.text,
+                current_risk_score=aggregated_score,
+                ml_confidence=explanation["confidence_level"],
+                rule_keywords=explanation["signals"]["rules"].get("keywords", [])
+            )
+
+            # Update risk level based on LLM decision
+            if llm_decision == "scam":
+                risk_level = RiskLevel.SCAM
+                session.scamDetected = True
+            elif llm_decision == "safe":
+                risk_level = RiskLevel.SAFE
+                session.scamSuspected = False
+
+            # Use LLM-adjusted score
+            aggregated_score = llm_score
+            session.scamConfidenceScore = llm_score
+            session.riskLevel = risk_level.value
+
+            # Add LLM reasoning to explanation
+            if explanation.get("llm_validation") is None:
+                explanation["llm_validation"] = {}
+            explanation["llm_validation"] = {
+                "decision": llm_decision,
+                "score": llm_score,
+                "reasoning": llm_reasoning
+            }
+            session.decisionExplanation = explanation
+            session = session_service.update_session(session)
+
+            logger.info(
+                f"LLM validation result: {llm_decision}, "
+                f"adjusted_score={llm_score:.2f} (was {aggregated_score:.2f})"
+            )
+        except Exception as e:
+            logger.error(f"LLM validation error: {e}")
+
+    # OPTION 3: Multi-turn pattern analysis (if enabled and enough messages)
+    pattern_analysis = None
+    if (settings.use_llm_pattern_analysis and
+        session.totalMessages >= settings.llm_min_messages_for_pattern_analysis and
+        llm_validator.is_available()):
+        logger.info(f"Running LLM pattern analysis for session {request.sessionId}")
+        try:
+            pattern_analysis = await llm_validator.analyze_conversation_pattern(
+                messages=session.messages,
+                session=session
+            )
+
+            # If sophisticated pattern detected, upgrade risk level
+            if pattern_analysis.get("pattern_detected") and pattern_analysis.get("sophistication_level") in ["medium", "high"]:
+                if risk_level != RiskLevel.SCAM:
+                    logger.info(
+                        f"Sophisticated pattern detected ({pattern_analysis['sophistication_level']}), "
+                        f"upgrading risk level"
+                    )
+                    if risk_level == RiskLevel.SAFE:
+                        risk_level = RiskLevel.SUSPICIOUS
+                        session.scamSuspected = True
+                    # Boost score for sophisticated patterns
+                    aggregated_score = min(aggregated_score + 0.20, 1.0)
+                    session.scamConfidenceScore = aggregated_score
+                    session.riskLevel = risk_level.value
+
+            # Add pattern analysis to explanation
+            explanation["pattern_analysis"] = pattern_analysis
+            session.decisionExplanation = explanation
+            session = session_service.update_session(session)
+
+            logger.info(
+                f"Pattern analysis: sophisticated={pattern_analysis.get('sophistication_level')}, "
+                f"tactics={pattern_analysis.get('manipulation_tactics', [])}"
+            )
+        except Exception as e:
+            logger.error(f"LLM pattern analysis error: {e}")
+
     # Log decision to feedback loop
     feedback_loop_service.log_decision(
         session_id=request.sessionId,
@@ -217,7 +307,9 @@ async def handle_message(
         # Merge with existing intelligence
         intelligence = session.extractedIntelligence.merge(intelligence)
         session = session_service.update_intelligence(request.sessionId, intelligence)
-        logger.info(f"Extracted intelligence: {intelligence.model_dump()}")
+        # Mask sensitive data before logging
+        masked_intel = data_masker.mask_intelligence(intelligence.model_dump())
+        logger.info(f"Extracted intelligence: {masked_intel}")
 
     # Step 5: Generate agent response based on risk level
     # Determine engagement strategy based on risk assessment
@@ -249,7 +341,36 @@ async def handle_message(
         scam_type = rule_and_model_scam_detector.get_scam_type(
             session.extractedIntelligence.suspiciousKeywords
         )
-        agent_notes = intelligence_extractor.generate_agent_notes(session, scam_type)
+
+        # OPTION 2: Use LLM for explanation generation (if enabled)
+        if settings.use_llm_explanation and llm_validator.is_available():
+            logger.info(f"Generating LLM-enhanced agent notes for session {request.sessionId}")
+            try:
+                intel = session.extractedIntelligence
+                intel_summary = (
+                    f"Extracted: {len(intel.upiIds)} UPI IDs, "
+                    f"{len(intel.phoneNumbers)} phone numbers, "
+                    f"{len(intel.phishingLinks)} phishing links, "
+                    f"{len(intel.bankAccounts)} bank accounts"
+                )
+
+                agent_notes = await llm_validator.generate_explanation(
+                    session=session,
+                    scam_type=scam_type,
+                    intelligence_summary=intel_summary
+                )
+
+                # Add pattern analysis if available
+                if pattern_analysis and pattern_analysis.get("pattern_detected"):
+                    agent_notes += f" Pattern analysis: {pattern_analysis.get('sophistication_level')} sophistication, tactics: {', '.join(pattern_analysis.get('manipulation_tactics', [])[:3])}"
+
+                logger.info("LLM-generated agent notes created")
+            except Exception as e:
+                logger.error(f"LLM explanation generation error, using fallback: {e}")
+                agent_notes = intelligence_extractor.generate_agent_notes(session, scam_type)
+        else:
+            # Fallback to traditional agent notes
+            agent_notes = intelligence_extractor.generate_agent_notes(session, scam_type)
 
         # Send callback in background
         background_tasks.add_task(process_callback, session, agent_notes)

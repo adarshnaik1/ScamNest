@@ -19,6 +19,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-02-05
+
+### Added - LLM Detection & Data Masking
+
+#### New Services
+- **LLM Scam Validator** (`app/services/llm_scam_validator.py`): Optional GPT-4o-mini powered validation
+  - Three operational modes (all opt-in, disabled by default):
+    1. **SUSPICIOUS Validation**: LLM review for borderline cases (ML confidence 0.5-0.7)
+    2. **Pattern Analysis**: Multi-turn conversation sophistication detection (3+ messages)
+    3. **Explanation Generation**: Natural language agentNotes for callbacks
+  - Configurable via environment variables
+  - Graceful degradation (falls back to traditional methods)
+  - Conservative timeout (5.0s) to prevent blocking
+  - Cost-optimized with gpt-4o-mini model
+
+- **Data Masker** (`app/services/data_masker.py`): PII protection for GDPR/CCPA compliance
+  - Three masking levels: FULL, PARTIAL, MINIMAL
+  - Automatic detection and masking:
+    - API keys and tokens (sk-***...xyz789)
+    - Phone numbers (+91-98***43210)
+    - UPI IDs (u***@paytm)
+    - Bank accounts (****6789012)
+    - Email addresses (u***@example.com)
+  - Context-aware masking (logs vs callbacks vs internal)
+  - Header masking for sensitive authentication data
+  - De-masking support for authorized contexts
+  - Intelligence masking for safe display
+
+#### Configuration
+- **LLM Detection Settings** (6 new environment variables):
+  - `USE_LLM_VALIDATION`: Enable LLM validation for SUSPICIOUS cases
+  - `USE_LLM_EXPLANATION`: Enable LLM-generated agentNotes
+  - `USE_LLM_PATTERN_ANALYSIS`: Enable multi-turn pattern detection
+  - `LLM_DETECTION_MODEL`: Model selection (default: gpt-4o-mini)
+  - `LLM_DETECTION_TIMEOUT`: API timeout in seconds (default: 5.0)
+  - `LLM_MIN_MESSAGES_FOR_PATTERN_ANALYSIS`: Threshold for pattern analysis (default: 3)
+
+#### Integration
+- **Honeypot Router** (`app/routers/honeypot.py`):
+  - Option 1: LLM validation after risk aggregation (lines ~170-210)
+  - Option 2: LLM explanation for agentNotes (lines ~340-370)
+  - Option 3: Multi-turn pattern analysis (lines ~212-260)
+  - Data masking in all log statements
+  - Masked headers for request logging
+  - Masked intelligence for safe debugging
+
+#### Benefits
+- **LLM Detection**: Reduces false positives in borderline cases
+- **Pattern Analysis**: Detects sophisticated multi-stage scams
+- **Natural Explanations**: Better callback payload readability
+- **PII Protection**: GDPR/CCPA compliance, secure logging
+- **Audit Trail**: Safe logging without exposing sensitive data
+- **Backward Compatible**: All features opt-in, no breaking changes
+
+---
+
 ## [1.1.0] - 2026-02-05
 
 ### Added - Confidence-Aware Scam Detection Enhancement

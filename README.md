@@ -12,11 +12,13 @@
 
 ### Core Capabilities
 - **🔍 Intelligent Scam Detection**: Hybrid approach combining ML models with rule-based patterns
+- **� Optional LLM Validation**: GPT-4o-mini powered detection for borderline cases (opt-in)
 - **🤖 Autonomous Agent Engagement**: Natural, human-like conversation powered by OpenAI GPT
 - **📊 Intelligence Extraction**: Automated extraction of UPI IDs, phone numbers, bank accounts, and phishing links
+- **🛡️ Data Masking**: PII protection in logs for GDPR/CCPA compliance
 - **🌐 Multi-language Support**: Detect and translate messages in multiple languages
 - **🔒 Secure API**: API key-based authentication for all endpoints
-- **📝 Comprehensive Logging**: Detailed session tracking and conversation history
+- **📝 Comprehensive Logging**: Detailed session tracking with masked sensitive data
 - **🎯 Automated Reporting**: Real-time callback to evaluation endpoints with extracted intelligence
 
 ### Technical Highlights
@@ -71,6 +73,14 @@
    
    # OpenAI Configuration
    OPENAI_API_KEY=sk-your-openai-api-key
+   OPENAI_MODEL=gpt-4o-mini
+   
+   # LLM Detection (Optional - All disabled by default)
+   USE_LLM_VALIDATION=false  # Enable for SUSPICIOUS cases
+   USE_LLM_EXPLANATION=false  # Enable for natural agentNotes
+   USE_LLM_PATTERN_ANALYSIS=false  # Enable for multi-turn detection
+   LLM_DETECTION_MODEL=gpt-4o-mini
+   LLM_DETECTION_TIMEOUT=5.0
    
    # Server Configuration (Optional)
    HOST=0.0.0.0

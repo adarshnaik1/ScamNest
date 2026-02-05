@@ -242,6 +242,44 @@ git push origin feature/your-feature-name
 
 ## Coding Standards
 
+### General Guidelines
+
+1. **Follow PEP 8** for Python code style
+2. **Use type hints** wherever possible
+3. **Write docstrings** for all public functions and classes (Google style)
+4. **Keep functions small** (ideally < 50 lines)
+5. **Use meaningful variable names** (no single-letter variables except loop counters)
+6. **Avoid magic numbers** (use named constants)
+
+### Data Privacy and Security
+
+**⚠️ CRITICAL: Never log sensitive data without masking**
+
+```python
+# ❌ BAD - Exposes PII
+logger.info(f"Processing UPI: {upi_id}")
+logger.debug(f"API key: {api_key}")
+
+# ✅ GOOD - Masked for safety
+from app.services.data_masker import mask_for_logging, DataMasker
+
+logger.info(f"Processing UPI: {mask_for_logging(upi_id)}")
+logger.debug(f"API key: {DataMasker.mask_api_key(api_key)}")
+
+# ✅ GOOD - Mask intelligence before logging
+masked_intel = DataMasker.mask_intelligence(intelligence.model_dump())
+logger.info(f"Extracted: {masked_intel}")
+```
+
+**Masking Requirements**:
+- ✅ All phone numbers, UPI IDs, bank accounts, emails MUST be masked in logs
+- ✅ API keys and tokens MUST be masked in all outputs
+- ✅ Use context-aware masking: FULL for logs, PARTIAL for debugging
+- ✅ Never mask data in callbacks (GUVI endpoint needs full data)
+- ✅ Use `DemaskedData` wrapper for temporary de-masking with audit trail
+
+### Coding Standards
+
 ### Python Style Guide
 
 We follow **PEP 8** with some modifications:

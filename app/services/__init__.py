@@ -7,6 +7,7 @@ from .scam_detector_hybrid import ScamDetector
 from .intelligence_extractor import IntelligenceExtractor
 from .agent_service import AgentService
 from .callback_service import CallbackService
+from .data_masker import DataMasker, mask_for_logging, mask_for_api_response, mask_headers
 
 __all__ = [
     "SessionService",
@@ -14,4 +15,8 @@ __all__ = [
     "IntelligenceExtractor",
     "AgentService",
     "CallbackService",
+    "DataMasker",
+    "mask_for_logging",
+    "mask_for_api_response",
+    "mask_headers",
 ]

@@ -13,7 +13,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
-    
+
     api_key: str = "ABC-123"
     openai_api_key: Optional[str] = None
     hf_token: Optional[str] = None
@@ -22,7 +22,15 @@ class Settings(BaseSettings):
     callback_timeout: int = 10
     min_messages_for_callback: int = 3
     scam_confidence_threshold: float = 0.7
-    
+
+    # LLM Detection Settings
+    use_llm_validation: bool = False
+    use_llm_explanation: bool = False
+    use_llm_pattern_analysis: bool = False
+    llm_detection_model: str = "gpt-4o-mini"
+    llm_detection_timeout: float = 5.0
+    llm_min_messages_for_pattern_analysis: int = 3
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",

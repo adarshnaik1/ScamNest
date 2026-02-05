@@ -42,9 +42,11 @@ ScamNest provides an intelligent honeypot API that:
 | Feature | Description |
 |---------|-------------|
 | **Scam Detection** | Hybrid ML + rule-based detection with confidence scoring |
+| **LLM Validation** | Optional GPT-4o-mini powered validation for borderline cases (opt-in) |
 | **Agentic Engagement** | AI-powered conversational responses via OpenAI GPT |
 | **Multi-language** | Automatic detection and translation of non-English messages |
 | **Intelligence Gathering** | Automated extraction of financial indicators and contact information |
+| **Data Masking** | PII protection in logs for GDPR/CCPA compliance |
 | **Session Persistence** | Stateful conversation tracking across multiple requests |
 | **Automated Reporting** | Callback to evaluation endpoint with complete session data |
 
@@ -504,6 +506,104 @@ Extracts specific scam indicators using regex patterns:
 | **Bank Accounts** | Numeric patterns with IFSC | `123456789012`, `SBIN0001234` |
 | **URLs** | URL patterns | `http://phishing-site.com` |
 | **Keywords** | Context-based extraction | "urgent", "verify", "blocked" |
+
+#### Stage 4: LLM-Enhanced Detection (Optional)
+
+**Service**: `llm_scam_validator.py`
+
+**\u26a0\ufe0f All LLM features are OPT-IN and disabled by default for cost/latency optimization**
+
+Three optional LLM detection modes using GPT-4o-mini:
+
+**Mode 1: SUSPICIOUS Validation**
+- **When**: ML confidence is borderline (SUSPICIOUS risk level, typically 0.5-0.7)
+- **Purpose**: Reduce false positives by getting LLM second opinion
+- **Latency**: +1-3 seconds
+- **Config**: `USE_LLM_VALIDATION=true`
+- **Returns**: (decision, score, reasoning) tuple
+- **Example**: Validates if "urgent account verification" is legitimate concern or scam tactic
+
+**Mode 2: Natural Language Explanations**
+- **When**: Preparing callback payload agentNotes
+- **Purpose**: Generate human-readable scam analysis for better reporting
+- **Latency**: +1-2 seconds
+- **Config**: `USE_LLM_EXPLANATION=true`
+- **Returns**: Natural language summary instead of technical notation
+- **Example**: "Scammer impersonated bank official and requested OTP for fake account verification" vs "patterns: urgency+authority+credential_request"
+
+**Mode 3: Multi-turn Pattern Analysis**
+- **When**: Conversation reaches 3+ messages
+- **Purpose**: Detect sophisticated multi-stage scam tactics
+- **Latency**: +2-4 seconds
+- **Config**: `USE_LLM_PATTERN_ANALYSIS=true`
+- **Analyzes**: Conversation flow, psychological manipulation, escalation patterns
+- **Detects**: Social engineering, trust building, false urgency, authority abuse
+- **Example**: Identifies scammer gradually building trust before requesting sensitive info
+
+**Configuration**:
+```env
+# LLM Detection (Optional - All disabled by default)
+USE_LLM_VALIDATION=false       # Mode 1: Borderline case validation
+USE_LLM_EXPLANATION=false      # Mode 2: Natural language agentNotes
+USE_LLM_PATTERN_ANALYSIS=false # Mode 3: Multi-turn sophistication detection
+LLM_DETECTION_MODEL=gpt-4o-mini
+LLM_DETECTION_TIMEOUT=5.0
+LLM_MIN_MESSAGES_FOR_PATTERN_ANALYSIS=3
+```
+
+**Benefits**:
+- \ud83c\udfaf Improved accuracy for borderline cases
+- \ud83d\udcca Better callback payload readability
+- \ud83e\udde0 Detection of sophisticated multi-stage scams
+- \ud83d\udd04 Graceful degradation (falls back to traditional methods if LLM unavailable)
+
+**Trade-offs**:
+- \u23f1\ufe0f Adds 1-4 seconds latency (configurable timeout)
+- \ud83d\udcb0 Increases operational cost (~$0.0001 per detection)
+- \ud83d\udd0c Requires OpenAI API availability
+
+**Recommendation**:
+- **Hackathon/Demo**: Keep disabled for speed (15ms traditional vs 1-3s with LLM)
+- **Production**: Enable selectively based on false positive rates
+- **High-stakes**: Enable all modes for maximum accuracy
+
+---
+
+## Data Masking and Privacy
+
+### PII Protection
+
+**Service**: `data_masker.py`
+
+All sensitive data is automatically masked in logs for GDPR/CCPA compliance:
+
+| Data Type | Masking Example |
+|-----------|-----------------|
+| API Keys | `sk-proj-abc123...xyz789` \u2192 `sk-proj-***...xyz789` |
+| Phone Numbers | `+91-9876543210` \u2192 `+91-98***43210` |
+| UPI IDs | `user@paytm` \u2192 `u***@paytm` |
+| Bank Accounts | `123456789012` \u2192 `****6789012` |
+| Emails | `john@example.com` \u2192 `j***@example.com` |
+
+**Masking Levels**:
+- **FULL**: Maximum security (show prefix + last 4)
+- **PARTIAL**: Balanced (show first 2 + last 4, mask middle)
+- **MINIMAL**: Debugging (show first 6, mask rest)
+
+**Context-Aware**:
+- \u2705 Masked in: Logs, error messages, debug output, monitoring dashboards
+- \u274c Not masked in: Callback payloads (GUVI needs full data), internal processing
+
+**Example Usage**:
+```python
+from app.services.data_masker import mask_for_logging, DataMasker
+
+# Quick logging mask
+logger.info(f"Processing: {mask_for_logging(sensitive_text)}")
+
+# Mask intelligence
+masked = DataMasker.mask_intelligence(intelligence.model_dump())
+```
 
 ---
 

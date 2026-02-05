@@ -122,10 +122,15 @@ Each module has a single, well-defined responsibility:
 │  │  Extractor   │  │   Service    │  │   Manager    │     │
 │  └──────────────┘  └──────────────┘  └──────────────┘     │
 │                                                             │
-│  ┌──────────────┐  ┌──────────────┐                       │
-│  │  Translator  │  │   Callback   │                       │
-│  │   Service    │  │   Service    │                       │
-│  └──────────────┘  └──────────────┘                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │  Translator  │  │   Callback   │  │ Data Masker  │     │
+│  │   Service    │  │   Service    │  │  (PII Prot)  │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
+│                                                             │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
+│  │ LLM Scam     │  │ Risk         │  │ Intent       │     │
+│  │ Validator    │  │ Aggregator   │  │ Scorer       │     │
+│  └──────────────┘  └──────────────┘  └──────────────┘     │
 └─────────────────────────────────────────────────────────────┘
                            │
                            ▼
@@ -151,6 +156,66 @@ Each module has a single, well-defined responsibility:
 ---
 
 ## Component Design
+
+### 0. Data Protection Layer (`app/services/data_masker.py`)
+
+**Responsibility**: Protect PII (Personally Identifiable Information) in logs and responses for GDPR/CCPA compliance
+
+**Capabilities**:
+- **Three masking levels**: FULL (maximum security), PARTIAL (balanced), MINIMAL (debugging)
+- **Pattern detection**: API keys, phone numbers, UPI IDs, bank accounts, emails
+- **Context-aware masking**: Different levels for logs vs callbacks vs internal processing
+- **Header protection**: Automatic masking of x-api-key, authorization headers
+- **De-masking support**: Controlled access to original data with audit logging
+- **Text masking**: Scan arbitrary text for sensitive patterns
+
+**Masking Examples**:
+```python
+from app.services.data_masker import DataMasker, mask_for_logging
+
+# API Key:      sk-proj-abc123...xyz789 -> sk-proj-***...xyz789
+# Phone:        +91-9876543210 -> +91-98***43210
+# UPI:          user@paytm -> u***@paytm
+# Bank Account: 123456789012 -> ****6789012
+# Email:        john@example.com -> j***@example.com
+
+# Quick logging mask
+logger.info(f"Processing: {mask_for_logging(sensitive_text)}")
+
+# Mask intelligence for safe display
+masked_intel = DataMasker.mask_intelligence(intelligence.model_dump())
+
+# Mask request headers
+masked_headers = DataMasker.mask_request_headers(request.headers)
+```
+
+**Integration Points**:
+- **Honeypot router**: Masks all sensitive data in log statements
+- **Intelligence extractor**: Safe display of extracted UPI/phone/bank data
+- **Callback service**: Conditional masking (no masking for GUVI callbacks, full masking for logs)
+- **Error handlers**: Masked error messages prevent PII leakage
+- **Monitoring**: Masked metrics and dashboards
+
+**Privacy Compliance**:
+- **GDPR**: Right to erasure, data minimization, privacy by design
+- **CCPA**: California Consumer Privacy Act compliance
+- **Audit Trail**: De-masking operations logged for compliance verification
+
+**When to Mask**:
+✅ **Always mask in**:
+- Log files and debug output
+- Error messages and stack traces
+- Public API responses (non-callback)
+- Monitoring dashboards
+- Development/staging environments
+
+❌ **Never mask in**:
+- Callback payloads to GUVI endpoint (requires full data)
+- Internal ML model processing
+- Active session state (in-memory)
+- Encrypted database storage
+
+---
 
 ### 1. API Layer (`app/routers/`)
 

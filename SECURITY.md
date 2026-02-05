@@ -97,7 +97,72 @@ class SecurityConfig:
 - Implement retry with exponential backoff
 - Monitor usage and costs
 
-### 4. Session Security
+#### Example Usage:
+```python
+from app.config import get_settings
+
+settings = get_settings()
+# API key is loaded but never logged
+openai_client = OpenAI(api_key=settings.openai_api_key)
+```
+
+### 4. Data Masking and De-masking
+
+#### Masking for PII Protection
+- **Automatic masking** in logs, debug output, and public APIs
+- **Three masking levels**: FULL, PARTIAL, MINIMAL
+- **Context-aware**: Different masking for logs vs callbacks
+- **GDPR/CCPA compliant**: Protects sensitive personal data
+
+#### Supported Data Types:
+```python
+from app.services.data_masker import DataMasker
+
+# API keys: sk-proj-abc123...xyz789 -> sk-proj-***...xyz789
+DataMasker.mask_api_key("sk-proj-abc123xyz789")
+
+# Phone: +91-9876543210 -> +91-98***43210
+DataMasker.mask_phone_number("+91-9876543210")
+
+# UPI: user@paytm -> u***@paytm
+DataMasker.mask_upi_id("user@paytm")
+
+# Bank: 123456789012 -> ****6789012
+DataMasker.mask_bank_account("123456789012")
+
+# Email: john.doe@example.com -> j***@example.com
+DataMasker.mask_email("john.doe@example.com")
+```
+
+#### When to Use Masking:
+✅ **DO mask** in:
+- Log files and debug output
+- API responses (non-callback)
+- Error messages
+- Monitoring dashboards
+- Public displays
+
+❌ **DON'T mask** in:
+- Callback payloads to GUVI endpoint
+- Internal processing (ML models)
+- Session state (in-memory)
+- Database storage (if encrypted)
+
+#### De-masking:
+```python
+from app.services.data_masker import DemaskedData
+
+# Create de-masked container
+sensitive = DemaskedData(original_data)
+
+# Access only when needed
+actual_data = sensitive.get()  # Logs access for audit
+
+# Safe logging (automatically redacted)
+logger.info(f"Processing: {sensitive}")  # Logs: [REDACTED]
+```
+
+### 5. Session Security
 
 - Don't store sensitive data in sessions
 - Implement session timeouts
