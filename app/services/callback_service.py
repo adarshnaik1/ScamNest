@@ -159,6 +159,7 @@ class CallbackService:
             c) Minimum 1 valuable artifact AND minimum 22 messages
             d) Minimum 1 valuable artifact AND minimum 28 messages
             e) Exit condition: 32+ messages
+            f) Safety net: ANY artifact + 10+ messages (ensures confirmed scams are reported)
         """
         if session.callbackSent:
             return False
@@ -215,6 +216,16 @@ class CallbackService:
         if valuable_artifacts >= 3 and session.totalMessages >= 8:
             logger.info(
                 "Callback condition met (Gate A): %s artifacts and %s messages",
+                valuable_artifacts,
+                session.totalMessages,
+            )
+            return True
+        
+        # Safety net: If scam is confirmed and we have ANY artifact, send callback after 10 messages
+        # This ensures we don't lose confirmed scams just because scammer stopped responding
+        if valuable_artifacts >= 1 and session.totalMessages >= 10:
+            logger.info(
+                "Callback condition met (Safety net): %s artifacts and %s messages (scam confirmed)",
                 valuable_artifacts,
                 session.totalMessages,
             )
