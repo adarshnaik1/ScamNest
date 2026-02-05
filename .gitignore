@@ -50,34 +50,91 @@ coverage.xml
 *.mo
 *.pot
 
-# Environments
+# =============================================================================
+# Security & Secrets (CRITICAL - GitGuardian Compliant)
+# =============================================================================
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+.secrets
+.credentials
+**/api_keys.json
+**/tokens.json
+**/*_secret*
+**/*_token*
+**/*_password*
+
+# Environments
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+.virtualenv/
+.python-version
 
-# IDEs
+# IDEs & Editors
 .idea/
 .vscode/
+!.vscode/extensions.json
+!.vscode/settings.json.example
 *.swp
 *.swo
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
 
-# Database
+# ML artifacts & Data (Security: Never commit trained models or datasets)
+*.pkl
+*.h5
+*.pt
+*.pth
+*.joblib
+*.model
+app/ai_model/models/*.pkl
+app/ai_model/models/*.joblib
+checkpoints/
+mlruns/
+wandb/
+
+# Databases
 *.db
 *.sqlite3
+*.sqlite
+*.db-shm
+*.db-wal
 
-# Logs
+# Logs & Temp
 *.log
 logs/
-
-# ML artifacts
-app/model_artifacts/
+*.tmp
+*.temp
+*.bak
+*.backup
+app.log
+error.log
+access.log
 
 # OS files
 .DS_Store
 Thumbs.db
+Desktop.ini
+$RECYCLE_BIN/
+.directory
+._*
 
+# Project specific
 requirement1.txt
+spam.csv
+sessions/
+temp/
+tmp/
+config/local.*

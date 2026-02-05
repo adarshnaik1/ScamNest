@@ -1,0 +1,292 @@
+# ============================================================================
+# GitHub Actions CI/CD Pipeline for ScamNest
+# ============================================================================
+# Runs on: push, pull_request to main branch
+# Features: Test, Lint, Security Scan, Build
+# ============================================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  PYTHON_VERSION: '3.9'
+
+jobs:
+  # ==========================================================================
+  # Code Quality & Linting
+  # ==========================================================================
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run Black (formatting check)
+        run: black --check app/ tests/
+
+      - name: Run isort (import sorting check)
+        run: isort --check-only app/ tests/
+
+      - name: Run flake8 (linting)
+        run: flake8 app/ tests/ --max-line-length=100 --extend-ignore=E203,W503
+
+      - name: Run mypy (type checking)
+        run: mypy app/ --ignore-missing-imports
+        continue-on-error: true  # Don't fail build on type errors yet
+
+  # ==========================================================================
+  # Security Scanning
+  # ==========================================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+
+      - name: Run Bandit (security linter)
+        run: bandit -r app/ -f json -o bandit-report.json
+        continue-on-error: true
+
+      - name: Run Safety (dependency vulnerabilities)
+        run: safety check --json
+        continue-on-error: true
+
+      - name: Run pip-audit (PyPI audit)
+        run: pip-audit --requirement requirements.txt
+        continue-on-error: true
+
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+      # Optional: GitGuardian secret scanning
+      # Requires GITGUARDIAN_API_KEY secret
+      # - name: GitGuardian scan
+      #   uses: GitGuardian/ggshield-action@v1
+      #   env:
+      #     GITHUB_PUSH_BEFORE_SHA: ${{ github.event.before }}
+      #     GITHUB_PUSH_BASE_SHA: ${{ github.event.base }}
+      #     GITHUB_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      #     GITGUARDIAN_API_KEY: ${{ secrets.GITGUARDIAN_API_KEY }}
+
+  # ==========================================================================
+  # Testing
+  # ==========================================================================
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.10', '3.11']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests with coverage
+        env:
+          API_KEY: test-api-key-for-ci
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-key' }}
+        run: |
+          pytest --cov=app --cov-report=xml --cov-report=term-missing -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.9'
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ==========================================================================
+  # Build & Validate
+  # ==========================================================================
+  build:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    needs: [lint, security, test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate pyproject.toml
+        run: |
+          pip install build
+          python -m build --wheel
+
+      - name: Test import
+        run: |
+          python -c "from app.main import app; print('✓ App imports successfully')"
+
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel
+          path: dist/*.whl
+
+  # ==========================================================================
+  # Documentation Check
+  # ==========================================================================
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          test -f README.md || exit 1
+          test -f API_SPEC.md || exit 1
+          test -f SECURITY.md || exit 1
+          test -f CONTRIBUTING.md || exit 1
+          test -f CHANGELOG.md || exit 1
+          echo "✓ All required documentation files exist"
+
+      - name: Check for broken links (optional)
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+        with:
+          use-quiet-mode: 'yes'
+          config-file: '.github/markdown-link-check-config.json'
+        continue-on-error: true
+
+  # ==========================================================================
+  # Release (on tag push)
+  # ==========================================================================
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [lint, security, test, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.whl
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==========================================================================
+  # Deployment (optional - for cloud deployment)
+  # ==========================================================================
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [lint, security, test, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+      url: https://your-production-url.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Example: Deploy to Heroku
+      # - name: Deploy to Heroku
+      #   uses: akhileshns/heroku-deploy@v3.12.14
+      #   with:
+      #     heroku_api_key: ${{ secrets.HEROKU_API_KEY }}
+      #     heroku_app_name: "scamnest-api"
+      #     heroku_email: ${{ secrets.HEROKU_EMAIL }}
+
+      # Example: Deploy to Azure Web Apps
+      # - name: Deploy to Azure
+      #   uses: azure/webapps-deploy@v2
+      #   with:
+      #     app-name: 'scamnest-api'
+      #     publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+
+      # Example: Deploy to AWS ECS
+      # - name: Deploy to AWS ECS
+      #   uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      #   with:
+      #     task-definition: task-definition.json
+      #     service: scamnest-service
+      #     cluster: scamnest-cluster
+
+      - name: Deployment placeholder
+        run: echo "Configure your deployment here"
+
+# ============================================================================
+# Workflow Badges
+# ============================================================================
+# Add to README.md:
+# [![CI/CD](https://github.com/adarshnaik1/ScamNest/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/adarshnaik1/ScamNest/actions/workflows/ci-cd.yml)
+# ============================================================================
