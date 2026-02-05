@@ -134,6 +134,7 @@ Remember: You're gathering information about the scammer while appearing to be a
                 ],
                 max_tokens=100,
                 temperature=0.8,
+                timeout=10.0,
             )
             if response.choices[0].message.content is not None:
                 return response.choices[0].message.content.strip()

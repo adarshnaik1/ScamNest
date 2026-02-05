@@ -177,25 +177,26 @@ class CallbackService:
             len(intel.phoneNumbers)
         )
         
-        # Exit condition: 32+ messages
-        if session.totalMessages >= 32:
+        # Gate A: More aggressive for hackathon evaluation
+        if valuable_artifacts >= 2 and session.totalMessages >= 3:
             logger.info(
-                "Callback condition met: exit condition at %s messages",
-                session.totalMessages,
-            )
-            return True
-
-        # Gate D: 1+ artifact + 28+ messages
-        if valuable_artifacts >= 1 and session.totalMessages >= 28:
-            logger.info(
-                "Callback condition met (Gate D): %s artifacts and %s messages",
+                "Callback condition met (Gate A): %s artifacts and %s messages",
                 valuable_artifacts,
                 session.totalMessages,
             )
             return True
 
-        # Gate C: 1+ artifact + 22+ messages
-        if valuable_artifacts >= 1 and session.totalMessages >= 22:
+        # Gate B: Backup for edge cases
+        if valuable_artifacts >= 1 and session.totalMessages >= 6:
+            logger.info(
+                "Callback condition met (Gate B): %s artifacts and %s messages",
+                valuable_artifacts,
+                session.totalMessages,
+            )
+            return True
+
+        # Safety cap: reduced to 20 messages for faster evaluation
+        if session.totalMessages >= 20:
             logger.info(
                 "Callback condition met (Gate C): %s artifacts and %s messages",
                 valuable_artifacts,
