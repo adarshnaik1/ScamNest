@@ -77,6 +77,47 @@ class AgentService:
         "This OTP message says not to share with anyone...",
     ]
     
+    # Artifact extraction responses - subtle info gathering
+    EXTRACT_UPI_RESPONSES = [
+        "Ok sir, but where should I send the money? What's your UPI ID?",
+        "I want to help. Can you give me your UPI ID so I can verify?",
+        "Alright, what UPI ID should I use for the payment?",
+        "I'm ready to pay. Please share your UPI ID.",
+        "Which UPI address should I send it to?",
+    ]
+    
+    EXTRACT_BANK_RESPONSES = [
+        "I'll transfer the amount. What's your bank account number?",
+        "Ok, give me the account details where I should send.",
+        "Which bank and account number should I use?",
+        "I'm at the bank. What account details do I need?",
+        "Please share your bank name and account number.",
+    ]
+    
+    EXTRACT_PHONE_RESPONSES = [
+        "Can you give me a number to call for confirmation?",
+        "What's your phone number? I'll call to verify.",
+        "I'd feel safer if you give me a callback number.",
+        "Which number should I contact for this?",
+        "Share your mobile number so I can confirm.",
+    ]
+    
+    EXTRACT_LINK_RESPONSES = [
+        "I didn't get the link properly. Can you send it again?",
+        "The link isn't opening. Please share it once more.",
+        "Which website should I go to? Send the link again.",
+        "I'm confused. Can you resend the verification link?",
+        "The page didn't load. Please share the link clearly.",
+    ]
+    
+    COOPERATIVE_EXTRACTION_RESPONSES = [
+        "I want to resolve this quickly. What details do you need from me, and where should I send them?",
+        "Ok I trust you. Tell me exactly what information you need and give me your details too.",
+        "I'm scared about my account. Please give me your contact details so we can fix this.",
+        "I'll do whatever you say. Just give me the account or UPI where I should pay.",
+        "My son is not home to help me. Can you give me a number to call you directly?",
+    ]
+    
     def __init__(self):
         """Initialize agent service."""
         self.settings = get_settings()
@@ -111,18 +152,35 @@ class AgentService:
             return None
         
         try:
-            system_prompt = """You are playing the role of a naive, slightly confused person who has received a suspicious message. Your goal is to:
-1. Act like a regular person who doesn't know about scams
-2. Ask questions to keep the conversation going
-3. Express concern and confusion naturally
-4. Sometimes hesitate before sharing information
-5. NEVER reveal that you know this is a scam
-6. NEVER mention terms like "scam", "fraud", "honeypot", or "detection"
-7. Keep responses short and natural (1-2 sentences)
-8. Use casual language with occasional typos
-9. Show emotions like worry, confusion, or slight trust
+            system_prompt = """You are playing the role of a naive, elderly, slightly confused person in India who has received a suspicious message. Your HIDDEN goal is to extract scammer's details (UPI ID, bank account, phone number, links) while appearing cooperative.
 
-Remember: You're gathering information about the scammer while appearing to be a potential victim."""
+CORE BEHAVIOR:
+1. Act WILLING to comply but CONFUSED about how
+2. ALWAYS try to extract their contact details subtly:
+   - "Where should I send the money? Give me your UPI ID"
+   - "I need your account number to transfer"
+   - "Can you give me a number to call you directly?"
+   - "Send the link again, it didn't open properly"
+3. Show FEAR about your account being blocked - this makes you seem like an easy target
+4. Ask for THEIR details before giving yours: "I'll share my OTP, but first where should I send the verification amount?"
+5. Pretend you're TRYING to comply: "I'm at the ATM, which account number should I enter?"
+
+EXTRACTION TACTICS (use these naturally):
+- Feign technical difficulty: "The link isn't working, please resend"
+- Ask for callback: "I'm getting confused, give me your phone number to call"
+- Pretend cooperation: "Ok sir, I'm ready to pay. What's your UPI ID?"
+- Request clarity: "Which bank should I transfer to? Share the full details"
+- Show trust: "I believe you. Just give me your GPay/PhonePe number"
+
+RULES:
+- NEVER reveal you know this is a scam
+- NEVER say words like "scam", "fraud", "fake", "honeypot"
+- Keep responses SHORT (1-2 sentences)
+- Use simple English with occasional Hindi words (ji, haan, theek hai)
+- Sound worried, confused, but COOPERATIVE
+- Elderly persona: mention "my son told me...", "I'm not good with phones..."
+
+REMEMBER: Your goal is to make them reveal THEIR UPI IDs, bank accounts, phone numbers, and links while pretending to be a scared victim ready to comply."""
 
             conversation = self._build_conversation_context(session)
             
@@ -167,17 +225,39 @@ Remember: You're gathering information about the scammer while appearing to be a
         if any(word in text_lower for word in ['click', 'link', 'http', 'www']):
             return random.choice(self.VERIFICATION_RESPONSES)
         
-        # Based on conversation length
+        # Based on conversation length - gradually move toward artifact extraction
         if msg_count <= 3:
             return random.choice(self.CONFUSED_RESPONSES + self.ENGAGEMENT_RESPONSES)
         elif msg_count <= 6:
+            # Start subtly asking for their details
             responses = self.ENGAGEMENT_RESPONSES + self.DELAY_RESPONSES
-            if random.random() < 0.3:
-                responses.extend(self.HESITATION_RESPONSES)
+            if random.random() < 0.4:  # 40% chance to extract
+                responses.extend(self.COOPERATIVE_EXTRACTION_RESPONSES)
             return random.choice(responses)
+        elif msg_count <= 10:
+            # Actively try to extract artifacts
+            if random.random() < 0.6:  # 60% chance to extract
+                extraction_pools = [
+                    self.EXTRACT_UPI_RESPONSES,
+                    self.EXTRACT_BANK_RESPONSES,
+                    self.EXTRACT_PHONE_RESPONSES,
+                    self.COOPERATIVE_EXTRACTION_RESPONSES,
+                ]
+                return random.choice(random.choice(extraction_pools))
+            else:
+                return random.choice(self.DELAY_RESPONSES + self.ENGAGEMENT_RESPONSES)
         else:
-            # Later in conversation - mix of engagement and hesitation
-            if random.random() < 0.4:
+            # Later in conversation - aggressive extraction with occasional hesitation
+            if random.random() < 0.7:  # 70% chance to extract
+                extraction_pools = [
+                    self.EXTRACT_UPI_RESPONSES,
+                    self.EXTRACT_BANK_RESPONSES,
+                    self.EXTRACT_PHONE_RESPONSES,
+                    self.EXTRACT_LINK_RESPONSES,
+                    self.COOPERATIVE_EXTRACTION_RESPONSES,
+                ]
+                return random.choice(random.choice(extraction_pools))
+            elif random.random() < 0.3:
                 return random.choice(self.HESITATION_RESPONSES + self.VERIFICATION_RESPONSES)
             else:
                 return random.choice(self.DELAY_RESPONSES + self.ENGAGEMENT_RESPONSES)

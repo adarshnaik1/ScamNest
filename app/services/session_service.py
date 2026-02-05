@@ -2,7 +2,7 @@
 Session management service using simple in-memory storage.
 """
 
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from datetime import datetime, timedelta
 
 from ..models.schemas import SessionState, Message, Metadata, ExtractedIntelligence
@@ -120,7 +120,7 @@ class SessionService:
             ts for ts in _velocity_tracker[session_id] if ts > cutoff
         ]
 
-    def check_velocity_violation(self, session_id: str) -> Dict[str, any]:
+    def check_velocity_violation(self, session_id: str) -> Dict[str, Any]:
         """
         Check if session has suspicious velocity patterns.
 
@@ -172,7 +172,7 @@ class SessionService:
             "count": window_count,
         }
 
-    def get_contextual_signals(self, session_id: str) -> Dict[str, any]:
+    def get_contextual_signals(self, session_id: str) -> Dict[str, Any]:
         """
         Get contextual risk signals for a session.
 

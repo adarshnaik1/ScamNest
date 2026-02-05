@@ -441,7 +441,7 @@ async def get_review_queue(
 async def submit_review_feedback(
     session_id: str,
     final_decision: str,
-    reviewer_notes: str = None,
+    reviewer_notes: str = "",
     api_key: str = Depends(verify_api_key),
 ) -> dict:
     """

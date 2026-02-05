@@ -148,18 +148,24 @@ class CallbackService:
         """
         Determine if callback should be sent for this session.
         
-        Strategy: Multiple escalating gates based on artifact count and message count.
+        Strategy: Balanced dual-threshold gates that prioritize intelligence gathering
+        while ensuring NO confirmed scams are lost.
         
-        Conditions:
+        Prerequisites:
         1. Scam must be confirmed (scamDetected = True)
         2. Callback not already sent
-        3. EITHER:
-            a) Minimum 3 valuable artifacts AND minimum 8 messages
-            b) Minimum 2 valuable artifacts AND minimum 16 messages
-            c) Minimum 1 valuable artifact AND minimum 22 messages
-            d) Minimum 1 valuable artifact AND minimum 28 messages
-            e) Exit condition: 32+ messages
-            f) Safety net: ANY artifact + 10+ messages (ensures confirmed scams are reported)
+        
+        Primary Gates (encourage longer engagement):
+        A1) 3+ artifacts + 7+ messages (optimal rich intelligence)
+        B1) 2+ artifacts + 12+ messages (optimal good intelligence)
+        C1) 1+ artifact + 16+ messages (optimal minimal intelligence)
+        
+        Safety Net Gates (prevent intelligence loss):
+        A2) 3+ artifacts + 5+ messages (fallback for rich intelligence)
+        B2) 2+ artifacts + 10+ messages (fallback for good intelligence)
+        C2) 1+ artifact + 14+ messages (fallback for minimal intelligence)
+        D) Confidence (≥0.50) + 0 artifacts + 20+ messages (non-cooperative scammer)
+        E) Exit: 28+ messages (hard cap for any confirmed scam)
         """
         if session.callbackSent:
             return False
@@ -177,56 +183,84 @@ class CallbackService:
             len(intel.phoneNumbers)
         )
         
-        # Gate A: More aggressive for hackathon evaluation
-        if valuable_artifacts >= 2 and session.totalMessages >= 3:
+        # PRIMARY GATES (Optimal - encourage longer engagement)
+        
+        # Gate A1: Rich intelligence, optimal engagement (3+ artifacts, 7+ messages)
+        if valuable_artifacts >= 3 and session.totalMessages >= 7:
             logger.info(
-                "Callback condition met (Gate A): %s artifacts and %s messages",
+                "Callback condition met (Gate A1 - Optimal Rich): %s artifacts, %s messages",
                 valuable_artifacts,
                 session.totalMessages,
             )
             return True
 
-        # Gate B: Backup for edge cases
-        if valuable_artifacts >= 1 and session.totalMessages >= 6:
+        # Gate B1: Good intelligence, optimal engagement (2+ artifacts, 12+ messages)
+        if valuable_artifacts >= 2 and session.totalMessages >= 12:
             logger.info(
-                "Callback condition met (Gate B): %s artifacts and %s messages",
+                "Callback condition met (Gate B1 - Optimal Good): %s artifacts, %s messages",
                 valuable_artifacts,
                 session.totalMessages,
             )
             return True
 
-        # Safety cap: reduced to 20 messages for faster evaluation
-        if session.totalMessages >= 20:
+        # Gate C1: Minimal intelligence, optimal engagement (1+ artifact, 16+ messages)
+        if valuable_artifacts >= 1 and session.totalMessages >= 16:
             logger.info(
-                "Callback condition met (Gate C): %s artifacts and %s messages",
-                valuable_artifacts,
-                session.totalMessages,
-            )
-            return True
-
-        # Gate B: 2+ artifacts + 16+ messages
-        if valuable_artifacts >= 2 and session.totalMessages >= 16:
-            logger.info(
-                "Callback condition met (Gate B): %s artifacts and %s messages",
-                valuable_artifacts,
-                session.totalMessages,
-            )
-            return True
-
-        # Gate A: 3+ artifacts + 8+ messages
-        if valuable_artifacts >= 3 and session.totalMessages >= 8:
-            logger.info(
-                "Callback condition met (Gate A): %s artifacts and %s messages",
+                "Callback condition met (Gate C1 - Optimal Minimal): %s artifacts, %s messages",
                 valuable_artifacts,
                 session.totalMessages,
             )
             return True
         
-        # Safety net: If scam is confirmed and we have ANY artifact, send callback after 10 messages
-        # This ensures we don't lose confirmed scams just because scammer stopped responding
-        if valuable_artifacts >= 1 and session.totalMessages >= 10:
+        # SAFETY NET GATES (Fallback - prevent intelligence loss)
+        
+        # Gate A2: Rich intelligence, fallback (3+ artifacts, 5+ messages)
+        # If scammer shares many artifacts quickly, don't lose them
+        if valuable_artifacts >= 3 and session.totalMessages >= 5:
             logger.info(
-                "Callback condition met (Safety net): %s artifacts and %s messages (scam confirmed)",
+                "Callback condition met (Gate A2 - Safety Rich): %s artifacts, %s messages",
+                valuable_artifacts,
+                session.totalMessages,
+            )
+            return True
+
+        # Gate B2: Good intelligence, fallback (2+ artifacts, 10+ messages)
+        # Catch cases where scammer stops after sharing 2 artifacts
+        if valuable_artifacts >= 2 and session.totalMessages >= 10:
+            logger.info(
+                "Callback condition met (Gate B2 - Safety Good): %s artifacts, %s messages",
+                valuable_artifacts,
+                session.totalMessages,
+            )
+            return True
+
+        # Gate C2: Minimal intelligence, fallback (1+ artifact, 14+ messages)
+        # Ensure single-artifact scams aren't lost
+        if valuable_artifacts >= 1 and session.totalMessages >= 14:
+            logger.info(
+                "Callback condition met (Gate C2 - Safety Minimal): %s artifacts, %s messages",
+                valuable_artifacts,
+                session.totalMessages,
+            )
+            return True
+
+        # Gate D: High-confidence scam with no artifacts (20+ messages, confidence ≥0.50)
+        # Scammer refuses to cooperate but confidence is moderate or higher
+        if valuable_artifacts == 0 and session.totalMessages >= 20:
+            if session.scamConfidenceScore >= 0.50:
+                logger.info(
+                    "Callback condition met (Gate D - Moderate Confidence): %s artifacts, %s messages, confidence=%.2f",
+                    valuable_artifacts,
+                    session.totalMessages,
+                    session.scamConfidenceScore,
+                )
+                return True
+
+        # Gate E: Exit condition (28+ messages)
+        # Hard cap - force callback for any confirmed scam to prevent infinite loop
+        if session.totalMessages >= 28:
+            logger.info(
+                "Callback condition met (Gate E - Exit): %s artifacts, %s messages",
                 valuable_artifacts,
                 session.totalMessages,
             )
