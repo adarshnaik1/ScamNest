@@ -121,8 +121,21 @@ async def handle_message(
         logger.info("preliminary scam detector output for session %s: %s", request.sessionId, ml_result)
 
         if label != "possible_scam":
-            # Return success with "not a scam" reply
-            return {"status": "success", "reply": "not a scam"}
+            # ML says not scam - respond naturally to keep engagement
+            # This maintains persona consistency per API_SPEC guidelines
+            reply = agent_service.generate_response_conditional(
+                session,
+                request.message,
+                engage_llm=False,  # Don't engage LLM for non-scam messages
+            )
+            # Add agent response to session
+            agent_message = Message(
+                sender="user",
+                text=reply,
+                timestamp=datetime.utcnow().isoformat() + "Z",
+            )
+            session = session_service.add_message(request.sessionId, agent_message)
+            return {"status": "success", "reply": reply}
 
         # Persist preliminary intent and mark LLM engagement
         session.preliminaryIntent = "possible_scam"
