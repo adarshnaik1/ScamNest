@@ -216,6 +216,16 @@ class IntentScorer:
         action_matches = self._extract_matches(text_lower, self.action_re)
         coercion_matches = self._extract_matches(text_lower, self.coercion_re)
         urgency_matches = self._extract_matches(text_lower, self.urgency_re)
+        authority_matches = self._extract_matches(text_lower, self.authority_re)
+        upi_scam_matches = self._extract_matches(text_lower, self.upi_scam_re)
+
+        # Count the matches
+        financial_count = len(financial_matches)
+        action_count = len(action_matches)
+        coercion_count = len(coercion_matches)
+        urgency_count = len(urgency_matches)
+        authority_count = len(authority_matches)
+        upi_scam_count = len(upi_scam_matches)
 
         # Calculate component scores
         # Financial entities: 0.0-0.25
