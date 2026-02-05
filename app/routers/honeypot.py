@@ -104,8 +104,8 @@ async def handle_message(
         logger.info("ML scam detector output for session %s: %s", request.sessionId, ml_result)
 
         if label != "possible_scam":
-            # Ignore non-scam messages early
-            return {"status": "ignored", "reason": "not a scam"}
+            # Return success with "not a scam" reply
+            return {"status": "success", "reply": "not a scam"}
 
         # Persist preliminary intent and mark LLM engagement
         session.preliminaryIntent = "possible_scam"
@@ -179,7 +179,6 @@ async def handle_message(
     return {
         "status": "success",
         "reply": reply,
-        "scam_type": scam_type,
     }
 
 
