@@ -2,8 +2,8 @@
 Pydantic schemas for request/response validation.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Union
 from datetime import datetime
 from enum import Enum
 
@@ -40,7 +40,17 @@ class Message(BaseModel):
     """Schema for a single message."""
     sender: str = Field(..., description="Either 'scammer' or 'user'")
     text: str = Field(..., description="Message content")
-    timestamp: str = Field(..., description="ISO-8601 formatted timestamp")
+    timestamp: Union[str, int] = Field(..., description="ISO-8601 string or Unix timestamp in milliseconds")
+    
+    @field_validator('timestamp')
+    @classmethod
+    def convert_timestamp(cls, v):
+        """Convert Unix timestamp (int) to ISO-8601 string if needed."""
+        if isinstance(v, int):
+            # Convert Unix timestamp in milliseconds to ISO-8601
+            dt = datetime.fromtimestamp(v / 1000.0)
+            return dt.isoformat() + "Z"
+        return v
 
 
 class Metadata(BaseModel):
