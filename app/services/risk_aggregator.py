@@ -70,7 +70,7 @@ class RiskAggregator:
     }
 
     # Risk thresholds for final decision
-    SCAM_THRESHOLD = 0.60
+    SCAM_THRESHOLD = 0.51
     SUSPICIOUS_THRESHOLD = 0.35
 
     def __init__(self):
